@@ -14,6 +14,9 @@ class QVGGNetCAM(nn.Module):
     def __init__(self, num_classes=2):
         super(QVGGNetCAM, self).__init__()
 
+        self.forward_result = None
+        self.backward_result = None
+
         self.pooling = nn.MaxPool2d(2, 2)
         self.relu = nn.ReLU(True)
         self.dropout = nn.Dropout()
@@ -62,15 +65,20 @@ class QVGGNetCAM(nn.Module):
             self.pooling,       # 7x7x512
         )
 
-        self.avg = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(512, num_classes)
+        self.classifier = nn.Linear(7*7*512, num_classes)
 
     def forward(self, x):
-        features = self.feature(x)
-        x = self.avg(features)
+        x = self.feature(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
 
-        return x, features
+        return x
 
+    def forward_hook(self, module, input, output):
+        print('forward hook')
+        self.forward_result = torch.squeeze(output)
+
+    def backward_hook(self, module, grad_input, grad_output):
+        print('backward hook')
+        self.backward_result = torch.squeeze(grad_output[0])
 

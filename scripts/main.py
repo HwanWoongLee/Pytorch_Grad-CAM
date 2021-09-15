@@ -57,7 +57,7 @@ loss_func = torch.nn.CrossEntropyLoss()
 #             x = x.cuda()
 #             label = label.cuda()
 #
-#         output, feature = model(x)
+#         output = model(x)
 #
 #         optim.zero_grad()
 #         loss = loss_func(output, label)
@@ -84,7 +84,7 @@ loss_func = torch.nn.CrossEntropyLoss()
 #                 x = x.cuda()
 #                 label = label.cuda()
 #
-#             output, feature = model(x)
+#             output = model(x)
 #             val_loss = loss_func(output, label)
 #             val_loss_arr.append(val_loss.item())
 #
@@ -101,16 +101,16 @@ loss_func = torch.nn.CrossEntropyLoss()
 load_model = torch.load('../backup/new_model.pth')
 load_model.eval()
 
+# register hook function
+load_model.feature.register_forward_hook(load_model.forward_hook)
+load_model.feature.register_backward_hook(load_model.backward_hook)
+
 # 모델의 state_dict 출력
-print(load_model.state_dict())
+# print(load_model.state_dict())
 for i in load_model.state_dict():
     print(i)
 
-key = '16.1.weight'
-param = load_model.module.feature.state_dict()[key]
-print('param.shape: ', param.shape)
-print('param.requires_grad: ', param.requires_grad)
-
+# load test dataset
 test_dataloader = DataLoader(dataset=test_datasets, batch_size=1, shuffle=False)
 
 # cal accuracy & CAM
@@ -122,16 +122,18 @@ for data, label in test_dataloader:
         data = data.cuda()
         label = label.cuda()
 
-    output, features = load_model(data)
-    weights = load_model.module.feature.state_dict()[key]
+    # forward
+    output = load_model(data)
 
-    s = torch.zeros(size=features[0, 0].shape)
-    for index in range(len(weights)):
-        f = features[0, index]
-        w = weights[index]
-        m = f * w
-        s += m.to('cpu')
+    # backward
+    score = torch.squeeze(output)
+    torch.max(score).backward(retain_graph=True)
 
+    a_k = torch.mean(load_model.backward_result, dim=(1, 2), keepdim=True)
+    out = torch.sum(a_k * load_model.forward_result, dim=0)
+    m = torch.nn.ReLU()(out).cpu()
+
+    # show result
     image_np = data.to('cpu')
     image_np = torch.squeeze(image_np[0]).numpy()
     image_np = np.transpose(image_np, (1, 2, 0))
@@ -139,7 +141,7 @@ for data, label in test_dataloader:
     image_np = cv.cvtColor(image_np, cv.COLOR_BGR2GRAY)
     image_pil = transforms.ToPILImage()(image_np)
 
-    s_np = s.detach().numpy()
+    s_np = m.detach().numpy()
     s_np = cv.resize(s_np, dsize=(224, 224), interpolation=cv.INTER_CUBIC)
     s_np = cv.normalize(s_np, dst=None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8UC1)
     s_image = transforms.ToPILImage()(s_np)
@@ -160,4 +162,3 @@ for data, label in test_dataloader:
     correct_num += (predict == label).sum().item()
 
 print("Accuracy of Test Data : {:.2f} %".format(100 * correct_num / total_num))
-
