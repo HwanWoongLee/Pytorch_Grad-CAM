@@ -74,11 +74,11 @@ class QVGGNetCAM(nn.Module):
 
         return x
 
-    def forward_hook(self, module, input, output):
-        print('forward hook')
-        self.forward_result = torch.squeeze(output)
-
-    def backward_hook(self, module, grad_input, grad_output):
-        print('backward hook')
-        self.backward_result = torch.squeeze(grad_output[0])
+    # def forward_hook(self, module, input, output):
+    #     print('forward hook')
+    #     self.forward_result = torch.squeeze(output)
+    #
+    # def backward_hook(self, module, grad_input, grad_output):
+    #     print('backward hook')
+    #     self.backward_result = torch.squeeze(grad_output[0])
 

@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scripts.model import QVGGNetCAM
 import cv2 as cv
+from GradCAM import GetGradCAMModule
 
 
 # parameter
@@ -101,13 +102,16 @@ loss_func = torch.nn.CrossEntropyLoss()
 load_model = torch.load('../backup/new_model.pth')
 load_model.eval()
 
+# load_model -> GradCAM
+gc_model = GetGradCAMModule(load_model, 'feature')
+
 # register hook function
-load_model.feature.register_forward_hook(load_model.forward_hook)
-load_model.feature.register_backward_hook(load_model.backward_hook)
+# load_model.feature.register_forward_hook(load_model.forward_hook)
+# load_model.feature.register_backward_hook(load_model.backward_hook)
 
 # 모델의 state_dict 출력
 # print(load_model.state_dict())
-for i in load_model.state_dict():
+for i in gc_model.state_dict():
     print(i)
 
 # load test dataset
@@ -123,14 +127,14 @@ for data, label in test_dataloader:
         label = label.cuda()
 
     # forward
-    output = load_model(data)
+    output = gc_model(data)
 
     # backward
     score = torch.squeeze(output)
     torch.max(score).backward(retain_graph=True)
 
-    a_k = torch.mean(load_model.backward_result, dim=(1, 2), keepdim=True)
-    out = torch.sum(a_k * load_model.forward_result, dim=0)
+    a_k = torch.mean(gc_model.backward_result, dim=(1, 2), keepdim=True)
+    out = torch.sum(a_k * gc_model.forward_result, dim=0)
     m = torch.nn.ReLU()(out).cpu()
 
     # show result
